@@ -18,7 +18,7 @@ using static TagsApi.Tags;
 
 namespace Tags;
 
-[PluginMetadata(Id = "Tags", Version = "v1", Name = "Tags", Author = "schwarper")]
+[PluginMetadata(Id = "Tags", Version = "v2", Name = "Tags", Author = "schwarper")]
 public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
 {
     public static ISwiftlyCore Instance { get; set; } = null!;
