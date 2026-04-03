@@ -1,5 +1,4 @@
 using SwiftlyS2.Shared.GameEventDefinitions;
-using SwiftlyS2.Shared.Misc;
 using SwiftlyS2.Shared.Players;
 using System.Text.RegularExpressions;
 using static SwiftlyS2.Shared.Helper;
@@ -264,22 +263,28 @@ public static partial class TagExtensions
         if (Instance == null)
             return;
 
-        if (System.Threading.Interlocked.Exchange(ref _scoreRefreshScheduled, 1) == 1)
+        if (Interlocked.Exchange(ref _scoreRefreshScheduled, 1) == 1)
             return;
 
         Instance.Scheduler.NextWorldUpdate(() =>
         {
-            System.Threading.Interlocked.Exchange(ref _scoreRefreshScheduled, 0);
+            Interlocked.Exchange(ref _scoreRefreshScheduled, 0);
             if (Instance == null) return;
             Instance.GameEvent.Fire<EventNextlevelChanged>();
         });
     }
 
     public static void ReloadConfig()
-        => Tags.Config.Settings.Init();
+    {
+        Tags.Config = ConfigMonitor.CurrentValue;
+        Tags.Config.Settings.Init();
+        RebuildTagIndexes();
+    }
 
     public static void ReloadTags()
     {
+        RebuildTagIndexes();
+
         var players = Instance.PlayerManager.GetAllPlayers();
         foreach (var player in players)
         {

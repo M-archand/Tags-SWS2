@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SwiftlyS2.Shared;
@@ -24,7 +23,10 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
     public static ISwiftlyCore Instance { get; set; } = null!;
     public static readonly Dictionary<ulong, Tag> PlayerTagsList = [];
     public static readonly Dictionary<ulong, DateTime> PlayerJoinUtc = [];
+    private static readonly Dictionary<ulong, Tag> SteamIdTagIndex = [];
+    private static readonly List<(string Role, Tag Tag)> RoleTagIndex = [];
     public static readonly TagsAPI Api = new();
+    internal static IOptionsMonitor<Config> ConfigMonitor { get; private set; } = null!;
     public static Config Config { get; set; } = null!;
 
     // Shop_Flags / async player item load tolerance
@@ -35,6 +37,34 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
     // periodic revalidation so tag updates when permissions are removed/expired
     private const float RevalidateIntervalSeconds = 1.0f;
     private static bool _revalidateLoopEnabled;
+
+    internal static bool TryGetSteamIdTag(ulong steamId, out Tag tag)
+        => SteamIdTagIndex.TryGetValue(steamId, out tag!);
+
+    internal static IReadOnlyList<(string Role, Tag Tag)> GetRoleTagIndex()
+        => RoleTagIndex;
+
+    internal static void RebuildTagIndexes()
+    {
+        SteamIdTagIndex.Clear();
+        RoleTagIndex.Clear();
+
+        foreach (var tag in Config.Tags)
+        {
+            if (string.IsNullOrWhiteSpace(tag.Role))
+                continue;
+
+            var role = tag.Role.Trim();
+            if (ulong.TryParse(role, out var steamId))
+            {
+                // Preserve the older first-match behavior for duplicate SteamID entries.
+                SteamIdTagIndex.TryAdd(steamId, tag);
+                continue;
+            }
+
+            RoleTagIndex.Add((role, tag));
+        }
+    }
 
     public override void Load(bool hotReload)
     {
@@ -55,7 +85,8 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
             .BindConfiguration(ConfigSection);
 
         var provider = services.BuildServiceProvider();
-        Config = provider.GetRequiredService<IOptions<Config>>().Value;
+        ConfigMonitor = provider.GetRequiredService<IOptionsMonitor<Config>>();
+        Config = ConfigMonitor.CurrentValue;
 
         foreach (string command in Config.Commands.TagsReload)
             Core.Command.RegisterCommand(command, Command_Tags_Reload, true, "tags.reload");
@@ -64,6 +95,7 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
             Core.Command.RegisterCommand(command, Command_Visibility, true, "tags.visibility");
 
         Tags.Config.Settings.Init();
+        RebuildTagIndexes();
 
         // Align with Shop_Flags (it applies permissions on world update)
         Core.Scheduler.NextWorldUpdate(() => ReloadTags());
@@ -87,6 +119,8 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
 
         PlayerTagsList.Clear();
         PlayerJoinUtc.Clear();
+        SteamIdTagIndex.Clear();
+        RoleTagIndex.Clear();
     }
 
     private static void ScheduleRevalidateLoop()
