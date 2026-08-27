@@ -36,7 +36,7 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
 
     // periodic revalidation so tag updates when permissions are removed/expired
     private const float RevalidateIntervalSeconds = 1.0f;
-    private static bool _revalidateLoopEnabled;
+    private static volatile bool _revalidateLoopEnabled;
 
     internal static bool TryGetSteamIdTag(ulong steamId, out Tag tag)
         => SteamIdTagIndex.TryGetValue(steamId, out tag!);
@@ -146,6 +146,9 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
 
     private static void RevalidateAllPlayers()
     {
+        if (!_revalidateLoopEnabled || Instance == null)
+            return;
+
         var players = Instance.PlayerManager.GetAllPlayers();
         foreach (var player in players)
         {
