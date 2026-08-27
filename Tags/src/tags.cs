@@ -21,8 +21,8 @@ namespace Tags;
 public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
 {
     public static ISwiftlyCore Instance { get; set; } = null!;
-    public static readonly Dictionary<ulong, Tag> PlayerTagsList = [];
-    public static readonly Dictionary<ulong, DateTime> PlayerJoinUtc = [];
+    public static readonly Dictionary<ulong, Tag> PlayerTagsBySession = [];
+    public static readonly Dictionary<ulong, DateTime> PlayerJoinUtcBySession = [];
     private static readonly Dictionary<ulong, Tag> SteamIdTagIndex = [];
     private static readonly List<(string Role, Tag Tag)> RoleTagIndex = [];
     public static readonly TagsAPI Api = new();
@@ -117,8 +117,8 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
     {
         _revalidateLoopEnabled = false;
 
-        PlayerTagsList.Clear();
-        PlayerJoinUtc.Clear();
+        PlayerTagsBySession.Clear();
+        PlayerJoinUtcBySession.Clear();
         SteamIdTagIndex.Clear();
         RoleTagIndex.Clear();
     }
@@ -192,10 +192,10 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
         if (player.IsFakeClient || player.SteamID == 0)
             return HookResult.Continue;
 
-        PlayerJoinUtc[player.SteamID] = DateTime.UtcNow;
+        PlayerJoinUtcBySession[player.SessionId] = DateTime.UtcNow;
 
         // don't lock-in default tag
-        PlayerTagsList.Remove(player.SteamID);
+        PlayerTagsBySession.Remove(player.SessionId);
 
         // attempt apply early, retry on world update (ShopCore async)
         ScheduleApplyAttemptWorld(player.SessionId, attempt: 1, force: true);
@@ -209,8 +209,8 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
         if (@event.UserIdPlayer is not IPlayer player)
             return HookResult.Continue;
 
-        PlayerTagsList.Remove(player.SteamID);
-        PlayerJoinUtc.Remove(player.SteamID);
+        PlayerTagsBySession.Remove(player.SessionId);
+        PlayerJoinUtcBySession.Remove(player.SessionId);
         return HookResult.Continue;
     }
 
@@ -266,7 +266,7 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
         if (player == null || !player.IsValid || player.IsFakeClient || player.SteamID == 0)
             return false;
 
-        if (PlayerJoinUtc.TryGetValue(player.SteamID, out var joinedUtc))
+        if (PlayerJoinUtcBySession.TryGetValue(player.SessionId, out var joinedUtc))
         {
             if ((DateTime.UtcNow - joinedUtc) <= PermissionWarmupWindow)
                 force = true;
@@ -293,7 +293,7 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
             return HookResult.Continue;
 
         bool force = false;
-        if (PlayerJoinUtc.TryGetValue(player.SteamID, out var joinedUtc))
+        if (PlayerJoinUtcBySession.TryGetValue(player.SessionId, out var joinedUtc))
         {
             if ((DateTime.UtcNow - joinedUtc) <= PermissionWarmupWindow)
                 force = true;

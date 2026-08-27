@@ -72,7 +72,7 @@ public static partial class TagExtensions
         if (player == null || !player.IsValid || player.IsFakeClient || player.SteamID == 0)
             return;
 
-        PlayerTagsList.TryGetValue(player.SteamID, out var cached);
+        PlayerTagsBySession.TryGetValue(player.SessionId, out var cached);
 
         var computed = player.GetTag();
         computed = MergeUserPrefs(computed, cached);
@@ -81,9 +81,9 @@ public static partial class TagExtensions
             return;
 
         if (IsDefaultTag(computed))
-            PlayerTagsList.Remove(player.SteamID);
+            PlayerTagsBySession.Remove(player.SessionId);
         else
-            PlayerTagsList[player.SteamID] = computed;
+            PlayerTagsBySession[player.SessionId] = computed;
 
         player.SetScoreTag(player.GetVisibility() ? computed.ScoreTag : Tags.Config.Default.ScoreTag);
     }
@@ -92,7 +92,7 @@ public static partial class TagExtensions
     {
         if (player == null) return Tags.Config.Default.Clone();
 
-        if (!force && PlayerTagsList.TryGetValue(player.SteamID, out var cached) && cached != null)
+        if (!force && PlayerTagsBySession.TryGetValue(player.SessionId, out var cached) && cached != null)
             return cached;
 
         var newTag = player.GetTag();
@@ -100,11 +100,11 @@ public static partial class TagExtensions
         // Never cache default (so async perms can flip later)
         if (IsDefaultTag(newTag))
         {
-            PlayerTagsList.Remove(player.SteamID);
+            PlayerTagsBySession.Remove(player.SessionId);
             return newTag;
         }
 
-        PlayerTagsList[player.SteamID] = newTag;
+        PlayerTagsBySession[player.SessionId] = newTag;
         return newTag;
     }
 
@@ -210,7 +210,7 @@ public static partial class TagExtensions
     }
 
     public static bool GetChatSound(this IPlayer player)
-        => PlayerTagsList.TryGetValue(player.SteamID, out var tag) ? tag.ChatSound : GetOrCreatePlayerTag(player, true).ChatSound;
+        => PlayerTagsBySession.TryGetValue(player.SessionId, out var tag) ? tag.ChatSound : GetOrCreatePlayerTag(player, true).ChatSound;
 
     public static void SetChatSound(this IPlayer player, bool value)
     {
@@ -221,7 +221,7 @@ public static partial class TagExtensions
     }
 
     public static bool GetVisibility(this IPlayer player)
-        => PlayerTagsList.TryGetValue(player.SteamID, out var tag) ? tag.Visibility : GetOrCreatePlayerTag(player, true).Visibility;
+        => PlayerTagsBySession.TryGetValue(player.SessionId, out var tag) ? tag.Visibility : GetOrCreatePlayerTag(player, true).Visibility;
 
     public static void SetVisibility(this IPlayer player, bool value)
     {
