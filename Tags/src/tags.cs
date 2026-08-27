@@ -34,6 +34,8 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
     private const float ApplyRetryDelaySeconds = 0.2f;
     private static readonly TimeSpan PermissionWarmupWindow = TimeSpan.FromSeconds(40);
 
+    private static readonly Dictionary<ulong, CancellationTokenSource> PendingApplyBySession = [];
+
     // periodic revalidation so tag updates when permissions are removed/expired
     private const float RevalidateIntervalSeconds = 1.0f;
     private static volatile bool _revalidateLoopEnabled;
@@ -116,6 +118,13 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
     public override void Unload()
     {
         _revalidateLoopEnabled = false;
+
+        foreach (var cts in PendingApplyBySession.Values)
+        {
+            cts.Cancel();
+            cts.Dispose();
+        }
+        PendingApplyBySession.Clear();
 
         PlayerTagsBySession.Clear();
         PlayerJoinUtcBySession.Clear();
@@ -212,6 +221,7 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
         if (@event.UserIdPlayer is not IPlayer player)
             return HookResult.Continue;
 
+        CancelPendingApply(player.SessionId);
         PlayerTagsBySession.Remove(player.SessionId);
         PlayerJoinUtcBySession.Remove(player.SessionId);
         return HookResult.Continue;
@@ -244,23 +254,38 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
         return HookResult.Continue;
     }
 
+    private static void CancelPendingApply(ulong sessionId)
+    {
+        if (PendingApplyBySession.Remove(sessionId, out var cts))
+        {
+            cts.Cancel();
+            cts.Dispose();
+        }
+    }
+
     private static void ScheduleApplyAttemptWorld(ulong sessionId, int attempt, bool force)
     {
         Instance.Scheduler.NextWorldUpdate(() =>
         {
             if (Instance.PlayerManager.GetPlayerFromSessionId(sessionId) is not { IsValid: true } player)
+            {
+                CancelPendingApply(sessionId);
                 return;
+            }
 
-            if (TryApplyTag(player, force))
+            if (TryApplyTag(player, force) || attempt >= ApplyMaxAttempts)
+            {
+                CancelPendingApply(sessionId);
                 return;
+            }
 
-            if (attempt >= ApplyMaxAttempts)
-                return;
-
-            Instance.Scheduler.DelayBySeconds(
+            var cts = Instance.Scheduler.DelayBySeconds(
                 ApplyRetryDelaySeconds,
                 () => ScheduleApplyAttemptWorld(sessionId, attempt + 1, force: true)
             );
+
+            CancelPendingApply(sessionId);
+            PendingApplyBySession[sessionId] = cts;
         });
     }
 
