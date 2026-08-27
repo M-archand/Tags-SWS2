@@ -198,7 +198,7 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
         PlayerTagsList.Remove(player.SteamID);
 
         // attempt apply early, retry on world update (ShopCore async)
-        ScheduleApplyAttemptWorld(player, attempt: 1, force: true);
+        ScheduleApplyAttemptWorld(player.SessionId, attempt: 1, force: true);
 
         return HookResult.Continue;
     }
@@ -223,7 +223,7 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
         if (player.IsFakeClient || player.SteamID == 0)
             return HookResult.Continue;
 
-        ScheduleApplyAttemptWorld(player, attempt: 1, force: false);
+        ScheduleApplyAttemptWorld(player.SessionId, attempt: 1, force: false);
         return HookResult.Continue;
     }
 
@@ -237,14 +237,17 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
         if (player.IsFakeClient || player.SteamID == 0)
             return HookResult.Continue;
 
-        ScheduleApplyAttemptWorld(player, attempt: 1, force: true);
+        ScheduleApplyAttemptWorld(player.SessionId, attempt: 1, force: true);
         return HookResult.Continue;
     }
 
-    private static void ScheduleApplyAttemptWorld(IPlayer player, int attempt, bool force)
+    private static void ScheduleApplyAttemptWorld(ulong sessionId, int attempt, bool force)
     {
         Instance.Scheduler.NextWorldUpdate(() =>
         {
+            if (Instance.PlayerManager.GetPlayerFromSessionId(sessionId) is not { IsValid: true } player)
+                return;
+
             if (TryApplyTag(player, force))
                 return;
 
@@ -253,7 +256,7 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
 
             Instance.Scheduler.DelayBySeconds(
                 ApplyRetryDelaySeconds,
-                () => ScheduleApplyAttemptWorld(player, attempt + 1, force: true)
+                () => ScheduleApplyAttemptWorld(sessionId, attempt + 1, force: true)
             );
         });
     }
