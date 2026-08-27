@@ -39,17 +39,6 @@ public static partial class TagExtensions
         _ => "\u0001"
     };
 
-    private static bool IsDefaultTag(Tag tag)
-    {
-        var d = Tags.Config.Default;
-        return string.Equals(tag.ScoreTag ?? "", d.ScoreTag ?? "", StringComparison.Ordinal)
-            && string.Equals(tag.ChatTag ?? "", d.ChatTag ?? "", StringComparison.Ordinal)
-            && string.Equals(tag.NameColor ?? "", d.NameColor ?? "", StringComparison.Ordinal)
-            && string.Equals(tag.ChatColor ?? "", d.ChatColor ?? "", StringComparison.Ordinal)
-            && tag.ChatSound == d.ChatSound
-            && tag.Visibility == d.Visibility;
-    }
-
     private static bool TagContentEquals(Tag a, Tag b)
     {
         return string.Equals(a.ScoreTag ?? "", b.ScoreTag ?? "", StringComparison.Ordinal)
@@ -80,30 +69,20 @@ public static partial class TagExtensions
         if (cached != null && TagContentEquals(cached, computed))
             return;
 
-        if (IsDefaultTag(computed))
-            PlayerTagsBySession.Remove(player.SessionId);
-        else
-            PlayerTagsBySession[player.SessionId] = computed;
+        PlayerTagsBySession[player.SessionId] = computed;
 
-        player.SetScoreTag(player.GetVisibility() ? computed.ScoreTag : Tags.Config.Default.ScoreTag);
+        player.SetScoreTag(computed.Visibility ? computed.ScoreTag : Tags.Config.Default.ScoreTag);
     }
 
     public static Tag GetOrCreatePlayerTag(IPlayer player, bool force)
     {
         if (player == null) return Tags.Config.Default.Clone();
 
-        if (!force && PlayerTagsBySession.TryGetValue(player.SessionId, out var cached) && cached != null)
+        PlayerTagsBySession.TryGetValue(player.SessionId, out var cached);
+        if (!force && cached != null)
             return cached;
 
-        var newTag = player.GetTag();
-
-        // Never cache default (so async perms can flip later)
-        if (IsDefaultTag(newTag))
-        {
-            PlayerTagsBySession.Remove(player.SessionId);
-            return newTag;
-        }
-
+        var newTag = MergeUserPrefs(player.GetTag(), cached);
         PlayerTagsBySession[player.SessionId] = newTag;
         return newTag;
     }
@@ -229,7 +208,7 @@ public static partial class TagExtensions
         Tags.Api.TagsUpdatedPre(player, tag);
 
         tag.Visibility = value;
-        player.SetScoreTag(value ? player.GetAttribute(TagType.ScoreTag) : Tags.Config.Default.ScoreTag);
+        player.SetScoreTag(value ? tag.ScoreTag : Tags.Config.Default.ScoreTag);
 
         Tags.Api.TagsUpdatedPost(player, tag);
     }
@@ -306,7 +285,7 @@ public static partial class TagExtensions
                 continue;
 
             var tag = GetOrCreatePlayerTag(player, true);
-            player.SetScoreTag(player.GetVisibility() ? tag.ScoreTag : Tags.Config.Default.ScoreTag);
+            player.SetScoreTag(tag.Visibility ? tag.ScoreTag : Tags.Config.Default.ScoreTag);
         }
     }
 }

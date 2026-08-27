@@ -303,7 +303,7 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
         var tag = GetOrCreatePlayerTag(player, force);
 
         // Respect visibility (hide -> default scoretag)
-        player.SetScoreTag(player.GetVisibility() ? tag.ScoreTag : Tags.Config.Default.ScoreTag);
+        player.SetScoreTag(tag.Visibility ? tag.ScoreTag : Tags.Config.Default.ScoreTag);
 
         return true;
     }
@@ -320,19 +320,12 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
         if (string.IsNullOrEmpty(msg.Param2))
             return HookResult.Continue;
 
-        bool force = false;
-        if (PlayerJoinUtcBySession.TryGetValue(player.SessionId, out var joinedUtc))
-        {
-            if ((DateTime.UtcNow - joinedUtc) <= PermissionWarmupWindow)
-                force = true;
-        }
-
-        var tag = GetOrCreatePlayerTag(player, force);
+        var tag = GetOrCreatePlayerTag(player, force: false);
 
         MessageProcess messageProcess = new()
         {
             Player = player,
-            Tag = !player.GetVisibility() ? Config.Default.Clone() : tag.Clone(),
+            Tag = tag.Visibility ? tag.Clone() : Config.Default.Clone(),
             Message = msg.Param2.RemoveCurlyBraceContent(),
             PlayerName = msg.Param1,
             ChatSound = msg.Chat,
