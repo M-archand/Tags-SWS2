@@ -1,4 +1,4 @@
-# cs2-tags
+# Tags
 
 A tag plugin designed to enhance your CS2 experience with a dynamic tagging system. Customise and manage player tags effortlessly for a more interactive and engaging game environment.
 

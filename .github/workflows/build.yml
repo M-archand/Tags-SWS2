@@ -1,4 +1,4 @@
-name: Build & Publish cs2-tags
+name: Build & Publish Tags
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
     paths-ignore:
       - 'README.md'
       - '.github/workflows/**'
-      - 'cs2-tags-example.toml'
-      - 'cs2-tags-api-test/**'
+      - 'Tags-example.toml'
+      - 'Tags-api-test/**'
 
 jobs:
   setup:
@@ -49,13 +49,13 @@ jobs:
 
       - name: Build
         run: |
-          dotnet build cs2-tags.sln -c Release --no-restore /p:Version=1.${{ env.BUILD_NUMBER }}
+          dotnet build Tags.sln -c Release --no-restore /p:Version=1.${{ env.BUILD_NUMBER }}
 
       - name: Create Release Artifact (ZIP) from BuildOutput
         run: |
           mkdir -p release
           cd BuildOutput
-          zip -r ../cs2-tags-v1.${{ env.BUILD_NUMBER }}.zip .
+          zip -r ../Tags-v1.${{ env.BUILD_NUMBER }}.zip .
 
       - name: Create GitHub Release
         id: create_release
@@ -82,6 +82,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./cs2-tags-v1.${{ env.BUILD_NUMBER }}.zip
-          asset_name: cs2-tags-v1.${{ env.BUILD_NUMBER }}.zip
+          asset_path: ./Tags-v1.${{ env.BUILD_NUMBER }}.zip
+          asset_name: Tags-v1.${{ env.BUILD_NUMBER }}.zip
           asset_content_type: application/zip
