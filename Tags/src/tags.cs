@@ -29,9 +29,11 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
     internal static IOptionsMonitor<Config> ConfigMonitor { get; private set; } = null!;
     public static Config Config { get; set; } = null!;
 
-    // Shop_Flags / async player item load tolerance
-    private const int ApplyMaxAttempts = 200;          // 200 * 0.2s = 40s
-    private const float ApplyRetryDelaySeconds = 0.2f;
+    // Retry tolerance for late auth / async permission load
+    // Exponential backoff,capped at 2s (~18s total)
+    private const int ApplyMaxAttempts = 12;
+    private const float ApplyRetryDelaySeconds = 0.2f; // initial delay
+    private const float ApplyRetryMaxDelaySeconds = 2.0f;
     private static readonly TimeSpan PermissionWarmupWindow = TimeSpan.FromSeconds(40);
 
     private static readonly Dictionary<ulong, CancellationTokenSource> PendingApplyBySession = [];
@@ -279,8 +281,12 @@ public sealed class Tags(ISwiftlyCore core) : BasePlugin(core)
                 return;
             }
 
+            var delay = MathF.Min(
+                ApplyRetryDelaySeconds * (1 << (attempt - 1)),
+                ApplyRetryMaxDelaySeconds);
+
             var cts = Instance.Scheduler.DelayBySeconds(
-                ApplyRetryDelaySeconds,
+                delay,
                 () => ScheduleApplyAttemptWorld(sessionId, attempt + 1, force: true)
             );
 
