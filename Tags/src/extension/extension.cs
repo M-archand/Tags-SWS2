@@ -240,10 +240,11 @@ public static partial class TagExtensions
             return;
 
         var normalized = tag ?? string.Empty;
+        var current = GetClanSafe(player); // can be removed later
 
         if (normalized.Length == 0)
         {
-            if (player.Controller.Clan != string.Empty)
+            if (current is null || current != string.Empty)
                 player.Controller.Clan = string.Empty;
 
             player.Controller.ClanUpdated();
@@ -251,11 +252,24 @@ public static partial class TagExtensions
             return;
         }
 
-        if (player.Controller.Clan != normalized)
+        if (current is null || current != normalized)
             player.Controller.Clan = normalized;
 
         player.Controller.ClanUpdated();
         FireScoreTagRefreshEvent();
+    }
+
+    // Can be removed once https://github.com/swiftly-solution/swiftlys2/pull/353 is merged
+    private static string? GetClanSafe(IPlayer player)
+    {
+        try
+        {
+            return player.Controller.Clan;
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
     }
 
     private static void FireScoreTagRefreshEvent()
